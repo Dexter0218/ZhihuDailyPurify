@@ -5,12 +5,10 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.preference.PreferenceManager;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -18,6 +16,7 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.annimon.stream.Stream;
 import com.nostra13.universalimageloader.core.DisplayImageOptions;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import com.nostra13.universalimageloader.core.display.FadeInBitmapDisplayer;
@@ -29,8 +28,11 @@ import java.util.LinkedList;
 import java.util.List;
 
 import io.github.izzyleung.zhihudailypurify.R;
+import io.github.izzyleung.zhihudailypurify.ZhihuDailyPurifyApplication;
 import io.github.izzyleung.zhihudailypurify.bean.DailyNews;
+import io.github.izzyleung.zhihudailypurify.bean.Question;
 import io.github.izzyleung.zhihudailypurify.support.Check;
+import io.github.izzyleung.zhihudailypurify.support.Constants;
 
 public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.CardViewHolder> {
     private List<DailyNews> newsList;
@@ -72,24 +74,21 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.CardViewHolder
         return new CardViewHolder(itemView, new CardViewHolder.ClickResponseListener() {
             @Override
             public void onWholeClick(int position) {
-                browseOrShare(context, position, true);
+                browse(context, position);
             }
 
             @Override
-            public void onOverflowClick(View v, final int position) {
+            public void onOverflowClick(View v, int position) {
                 PopupMenu popup = new PopupMenu(context, v);
                 MenuInflater inflater = popup.getMenuInflater();
                 inflater.inflate(R.menu.contextual_news_list, popup.getMenu());
-                popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
-                    @Override
-                    public boolean onMenuItemClick(MenuItem item) {
-                        switch (item.getItemId()) {
-                            case R.id.action_share_url:
-                                browseOrShare(context, position, false);
-                                break;
-                        }
-                        return true;
+                popup.setOnMenuItemClickListener(item -> {
+                    switch (item.getItemId()) {
+                        case R.id.action_share_url:
+                            share(context, position);
+                            break;
                     }
+                    return true;
                 });
                 popup.show();
             }
@@ -97,27 +96,22 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.CardViewHolder
     }
 
     @Override
-    public void onBindViewHolder(final CardViewHolder holder, final int position) {
-        final DailyNews dailyNews = new DailyNews(newsList.get(position));
+    public void onBindViewHolder(CardViewHolder holder, int position) {
+        DailyNews dailyNews = newsList.get(position);
         imageLoader.displayImage(dailyNews.getThumbnailUrl(), holder.newsImage, options, animateFirstListener);
 
-        if (dailyNews.isMulti()) {
+        if (dailyNews.getQuestions().size() > 1) {
             holder.questionTitle.setText(dailyNews.getDailyTitle());
-            String simplifiedMultiQuestion = "这里包含多个知乎讨论，请点击后选择";
-            holder.dailyTitle.setText(simplifiedMultiQuestion);
+            holder.dailyTitle.setText(Constants.Strings.MULTIPLE_DISCUSSION);
         } else {
-            if (dailyNews.getQuestionTitle() == null || dailyNews.getQuestionTitle().equals("")) {
-                holder.questionTitle.setText(dailyNews.getDailyTitle());
-            } else {
-                holder.questionTitle.setText(dailyNews.getQuestionTitle());
-            }
+            holder.questionTitle.setText(dailyNews.getQuestions().get(0).getTitle());
             holder.dailyTitle.setText(dailyNews.getDailyTitle());
         }
     }
 
     @Override
     public int getItemCount() {
-        return newsList.size();
+        return newsList == null ? 0 : newsList.size();
     }
 
     @Override
@@ -125,60 +119,67 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.CardViewHolder
         return newsList.get(position).hashCode();
     }
 
-    private void browseOrShare(final Context context, int position, final boolean browse) {
-        final DailyNews dailyNews = newsList.get(position);
-        if (dailyNews.isMulti()) {
-            String[] questionTitles = dailyNews.getQuestionTitleList()
-                    .toArray(new String[dailyNews.getQuestionTitleList().size()]);
+    private void browse(Context context, int position) {
+        DailyNews dailyNews = newsList.get(position);
 
-            new AlertDialog.Builder(context)
-                    .setTitle(dailyNews.getDailyTitle())
-                    .setItems(questionTitles, makeDialogListener(context, browse, dailyNews))
-                    .show();
+        if (dailyNews.hasMultipleQuestions()) {
+            AlertDialog dialog = createDialog(context,
+                    dailyNews,
+                    makeGoToZhihuDialogClickListener(context, dailyNews));
+            dialog.show();
         } else {
-            if (browse) {
-                goToZhihu(context, dailyNews.getQuestionUrl());
-            } else {
-                String questionTitle = dailyNews.getQuestionTitle(),
-                        questionUrl = dailyNews.getQuestionUrl();
-
-                share(context, questionTitle, questionUrl);
-            }
+            goToZhihu(context, dailyNews.getQuestions().get(0).getUrl());
         }
     }
 
-    private DialogInterface.OnClickListener makeDialogListener(final Context context, final boolean browse, final DailyNews dailyNews) {
-        return new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                if (browse) {
-                    goToZhihu(context, dailyNews.getQuestionUrlList().get(which));
-                } else {
-                    String questionTitle, questionUrl;
+    private void share(Context context, int position) {
+        DailyNews dailyNews = newsList.get(position);
 
-                    if (dailyNews.isMulti()) {
-                        questionTitle = dailyNews.getQuestionTitleList().get(which);
-                        questionUrl = dailyNews.getQuestionUrlList().get(which);
-                    } else {
-                        questionTitle = dailyNews.getQuestionTitle();
-                        questionUrl = dailyNews.getQuestionUrl();
-                    }
+        if (dailyNews.hasMultipleQuestions()) {
+            AlertDialog dialog = createDialog(context,
+                    dailyNews,
+                    makeShareQuestionDialogClickListener(context, dailyNews));
+            dialog.show();
+        } else {
+            shareQuestion(context,
+                    dailyNews.getQuestions().get(0).getTitle(),
+                    dailyNews.getQuestions().get(0).getUrl());
+        }
+    }
 
-                    share(context, questionTitle, questionUrl);
-                }
-            }
+    private AlertDialog createDialog(Context context, DailyNews dailyNews, DialogInterface.OnClickListener listener) {
+        String[] questionTitles = getQuestionTitlesAsStringArray(dailyNews);
+
+        return new AlertDialog.Builder(context)
+                .setTitle(dailyNews.getDailyTitle())
+                .setItems(questionTitles, listener)
+                .create();
+    }
+
+    private DialogInterface.OnClickListener makeGoToZhihuDialogClickListener(Context context, DailyNews dailyNews) {
+        return (dialog, which) -> {
+            String questionTitle = dailyNews.getQuestions().get(which).getTitle(),
+                    questionUrl = dailyNews.getQuestions().get(which).getUrl();
+
+            shareQuestion(context, questionTitle, questionUrl);
+        };
+    }
+
+    private DialogInterface.OnClickListener makeShareQuestionDialogClickListener(Context context, DailyNews dailyNews) {
+        return (dialog, which) -> {
+            String questionTitle = dailyNews.getQuestions().get(which).getTitle(),
+                    questionUrl = dailyNews.getQuestions().get(which).getUrl();
+
+            shareQuestion(context, questionTitle, questionUrl);
         };
     }
 
     private void goToZhihu(Context context, String url) {
-        if (!PreferenceManager.getDefaultSharedPreferences(context)
-                .getBoolean("using_client?", false)) {
+        if (!ZhihuDailyPurifyApplication.getSharedPreferences()
+                .getBoolean(Constants.SharedPreferencesKeys.KEY_SHOULD_USE_CLIENT, false)) {
             openUsingBrowser(context, url);
         } else if (Check.isZhihuClientInstalled()) {
-            //Open using Zhihu's official client
-            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-            browserIntent.setPackage("com.zhihu.android");
-            context.startActivity(browserIntent);
+            openUsingZhihuClient(context, url);
         } else {
             openUsingBrowser(context, url);
         }
@@ -194,13 +195,24 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.CardViewHolder
         }
     }
 
-    private void share(Context context, String questionTitle, String questionUrl) {
+    private void openUsingZhihuClient(Context context, String url) {
+        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        browserIntent.setPackage(Constants.Information.ZHIHU_PACKAGE_ID);
+        context.startActivity(browserIntent);
+    }
+
+    private void shareQuestion(Context context, String questionTitle, String questionUrl) {
         Intent share = new Intent(android.content.Intent.ACTION_SEND);
         share.setType("text/plain");
         //noinspection deprecation
         share.addFlags(Intent.FLAG_ACTIVITY_CLEAR_WHEN_TASK_RESET);
-        share.putExtra(Intent.EXTRA_TEXT, questionTitle + " " + questionUrl + " 分享自知乎网");
+        share.putExtra(Intent.EXTRA_TEXT,
+                questionTitle + " " + questionUrl + Constants.Strings.SHARE_FROM_ZHIHU);
         context.startActivity(Intent.createChooser(share, context.getString(R.string.share_to)));
+    }
+
+    private String[] getQuestionTitlesAsStringArray(DailyNews dailyNews) {
+        return Stream.of(dailyNews.getQuestions()).map(Question::getTitle).toArray(String[]::new);
     }
 
     public static class CardViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
@@ -242,7 +254,7 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.CardViewHolder
     }
 
     private static class AnimateFirstDisplayListener extends SimpleImageLoadingListener {
-        static final List<String> displayedImages = Collections.synchronizedList(new LinkedList<String>());
+        static final List<String> displayedImages = Collections.synchronizedList(new LinkedList<>());
 
         @Override
         public void onLoadingComplete(String imageUri, View view, Bitmap loadedImage) {

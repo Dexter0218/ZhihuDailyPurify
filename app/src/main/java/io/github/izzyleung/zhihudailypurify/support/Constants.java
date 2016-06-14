@@ -2,7 +2,9 @@ package io.github.izzyleung.zhihudailypurify.support;
 
 import com.google.gson.reflect.TypeToken;
 
+import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -13,26 +15,45 @@ public final class Constants {
 
     }
 
-    public static final class Url {
-        public static final String ZHIHU_DAILY_BEFORE = "http://news.at.zhihu.com/api/3/news/before/";
-        public static final String ZHIHU_DAILY_OFFLINE_NEWS = "http://news-at.zhihu.com/api/3/news/";
-        public static final String ZHIHU_DAILY_PURIFY_BEFORE = "http://zhihu-daily-purify.herokuapp.com/raw/";
-        public static final String SEARCH = "http://zhihu-daily-purify.herokuapp.com/search/";
+    public static final class Urls {
+        public static final String ZHIHU_DAILY_BEFORE = "http://news.at.zhihu.com/api/4/news/before/";
+        public static final String ZHIHU_DAILY_OFFLINE_NEWS = "http://news-at.zhihu.com/api/4/news/";
+        public static final String ZHIHU_DAILY_PURIFY_BEFORE = "http://zhihu-daily-purify.azurewebsites.net/news/";
+        public static final String SEARCH = "http://zhihu-daily-purify.azurewebsites.net/search/";
     }
 
-    public static final class Date {
+    public static final class Dates {
         public static final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyyMMdd", Locale.US);
         @SuppressWarnings("deprecation")
-        public static final java.util.Date birthday = new java.util.Date(113, 4, 19); // May 19th, 2013
+        public static final Date birthday = new java.util.Date(113, 4, 19); // May 19th, 2013
     }
 
-    public static final class Type {
-        public static final java.lang.reflect.Type newsType = new TypeToken<DailyNews>() {
+    public static final class Types {
+        public static final Type newsListType = new TypeToken<List<DailyNews>>() {
 
         }.getType();
+    }
 
-        public static final java.lang.reflect.Type newsListType = new TypeToken<List<DailyNews>>() {
+    public static final class Strings {
+        public static final String ZHIHU_QUESTION_LINK_PREFIX = "http://www.zhihu.com/question/";
+        public static final String SHARE_FROM_ZHIHU = " 分享自知乎网";
+        public static final String MULTIPLE_DISCUSSION = "这里包含多个知乎讨论，请点击后选择";
+    }
 
-        }.getType();
+    public static final class Information {
+        public static final String ZHIHU_PACKAGE_ID = "com.zhihu.android";
+    }
+
+    public static final class SharedPreferencesKeys {
+        public static final String KEY_SHOULD_ENABLE_ACCELERATE_SERVER = "enable_accelerate_server?";
+        public static final String KEY_SHOULD_USE_CLIENT = "using_client?";
+        public static final String KEY_SHOULD_AUTO_REFRESH = "auto_refresh?";
+        public static final String KEY_SHOULD_USE_ACCELERATE_SERVER = "using_accelerate_server?";
+    }
+
+    public static final class BundleKeys {
+        public static final String DATE = "date";
+        public static final String IS_SINGLE = "single?";
+        public static final String IS_FIRST_PAGE = "first_page?";
     }
 }
